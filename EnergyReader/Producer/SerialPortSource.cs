@@ -9,9 +9,9 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
-namespace EnergyReader
+namespace EnergyReader.Producer
 {
-    class SerialPortSource : ITelegramSource
+    class SerialPortSource : ITelegramProducer
     {
         public event EventHandler<TelegramEventArgs> NewTelegram;
         private SerialPort serialPort;

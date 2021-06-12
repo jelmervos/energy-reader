@@ -1,4 +1,6 @@
-﻿using System;
+﻿using EnergyReader.Consumer;
+using EnergyReader.Producer;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,19 +11,19 @@ namespace EnergyReader
     class TelegramMessageBus
     {
         private readonly List<ITelegramConsumer> consumers;
-        private readonly ITelegramSource source;
+        private readonly ITelegramProducer producer;
 
-        public TelegramMessageBus(ITelegramSource source, IEnumerable<ITelegramConsumer> consumers)
+        public TelegramMessageBus(ITelegramProducer producer, IEnumerable<ITelegramConsumer> consumers)
         {
-            this.source = source;
+            this.producer = producer;
             this.consumers = new List<ITelegramConsumer>(consumers);
         }
 
         public void Start()
         {
-            source.NewTelegram += NewTelegram;
+            producer.NewTelegram += NewTelegram;
             Parallel.ForEach(consumers, t => t.Start());
-            source.Start();
+            producer.Start();
         }
 
         private void NewTelegram(object sender, TelegramEventArgs e)
@@ -31,9 +33,9 @@ namespace EnergyReader
 
         public void Stop()
         {
-            source.Stop();
+            producer.Stop();
             Parallel.ForEach(consumers, t => t.Stop());
-            source.NewTelegram -= NewTelegram;
+            producer.NewTelegram -= NewTelegram;
         }
     }
 }

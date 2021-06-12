@@ -10,9 +10,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace EnergyReader
+namespace EnergyReader.Producer
 {
-    class UdpSource : ITelegramSource
+    class UdpSource : ITelegramProducer
     {
         public event EventHandler<TelegramEventArgs> NewTelegram;
         private UdpClient udpClient;

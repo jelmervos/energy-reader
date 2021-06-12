@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace EnergyReader
+namespace EnergyReader.Consumer
 {
     class FileWriter : ITelegramConsumer
     {

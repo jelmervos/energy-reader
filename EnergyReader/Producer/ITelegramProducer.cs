@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EnergyReader
+namespace EnergyReader.Producer
 {
     public class TelegramEventArgs
     {
@@ -16,7 +16,7 @@ namespace EnergyReader
         }
     }
 
-    interface ITelegramSource
+    interface ITelegramProducer
     {
         void Start();
         void Stop();

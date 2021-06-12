@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using EnergyReader.Consumer;
+using EnergyReader.Producer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -22,7 +24,7 @@ namespace EnergyReader
                     .AddHostedService<ConsoleHostedService>()
                     .AddSingleton(typeof(TelegramMessageBus))
 #if (DEBUG)
-                    .AddTransient<ITelegramSource, UdpSource>()
+                    .AddTransient<ITelegramProducer, UdpSource>()
                     .AddTransient<ITelegramConsumer, InfluxDbWriter>())
 #else
                     .AddTransient<ITelegramSource, SerialPortSource>()
