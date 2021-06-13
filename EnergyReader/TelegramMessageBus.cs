@@ -1,6 +1,6 @@
 ﻿using EnergyReader.Consumer;
 using EnergyReader.Producer;
-using System;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,32 +10,32 @@ namespace EnergyReader
 {
     class TelegramMessageBus
     {
-        private readonly List<ITelegramConsumer> consumers;
+        private readonly List<ConsumerQueue> consumerQueues;
         private readonly ITelegramProducer producer;
 
-        public TelegramMessageBus(ITelegramProducer producer, IEnumerable<ITelegramConsumer> consumers)
+        public TelegramMessageBus(ILoggerFactory logger, ITelegramProducer producer, IEnumerable<ITelegramConsumer> consumers)
         {
             this.producer = producer;
-            this.consumers = new List<ITelegramConsumer>(consumers);
+            consumerQueues = new List<ConsumerQueue>(consumers.Select(c => new ConsumerQueue(c, logger.CreateLogger(c.GetType().Name))));
         }
 
         public void Start()
         {
+            Parallel.ForEach(consumerQueues, c => c.Start());
             producer.NewTelegram += NewTelegram;
-            Parallel.ForEach(consumers, t => t.Start());
             producer.Start();
         }
 
         private void NewTelegram(object sender, TelegramEventArgs e)
         {
-            Parallel.ForEach(consumers, t => t.Enqueue(e.Data));
+            Parallel.ForEach(consumerQueues, c => c.Enqueue(e.Data));
         }
 
         public void Stop()
         {
             producer.Stop();
-            Parallel.ForEach(consumers, t => t.Stop());
             producer.NewTelegram -= NewTelegram;
+            Parallel.ForEach(consumerQueues, t => t.Stop());
         }
     }
 }

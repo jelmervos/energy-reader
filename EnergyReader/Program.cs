@@ -25,9 +25,9 @@ namespace EnergyReader
                     .AddSingleton(typeof(TelegramMessageBus))
 #if (DEBUG)
                     .AddTransient<ITelegramProducer, UdpSource>()
-                    .AddTransient<ITelegramConsumer, InfluxDbWriter>())
+                    .AddTransient<ITelegramConsumer, FileWriter>())
 #else
-                    .AddTransient<ITelegramSource, SerialPortSource>()
+                    .AddTransient<ITelegramProducer, SerialPortSource>()
                     .AddTransient<ITelegramConsumer, FileWriter>()
                     .AddTransient<ITelegramConsumer, UdpBroadcaster>()
                     .AddTransient<ITelegramConsumer, InfluxDbWriter>())

@@ -15,10 +15,6 @@ namespace EnergyReader.Consumer
 {
     class InfluxDbWriter : ITelegramConsumer
     {
-        private BlockingCollection<byte[]> inputQueue;
-        private CancellationTokenSource cts;
-        private Task consumerTask;
-        private int writeTasksRunning;
         private DateTimeOffset lastWrite;
         private readonly ILogger<InfluxDbWriter> logger;
         private readonly TimeSpan writeEvery = TimeSpan.FromMinutes(1);
@@ -27,35 +23,11 @@ namespace EnergyReader.Consumer
 
         public InfluxDbWriter(ILogger<InfluxDbWriter> logger)
         {
-            writeTasksRunning = 0;
             lastWrite = DateTimeOffset.MinValue;
             this.logger = logger;
         }
 
-        private void Consume(CancellationToken ct)
-        {
-            var telegrams = new List<Telegram>();
-            var parser = new DSMRTelegramParser();
-
-            while (!ct.IsCancellationRequested)
-            {
-                try
-                {
-                    if (inputQueue.TryTake(out var data, 100, ct))
-                    {
-                        var telegram = parser.Parse(new Span<byte>(data));
-                        if (telegram.TimeStamp != null)
-                        {
-                            telegrams.Add(telegram);
-                        }
-                    }
-                    CheckForWritableTelegrams(telegrams);
-                }
-                catch (OperationCanceledException) { }
-            }
-        }
-
-        private void CheckForWritableTelegrams(List<Telegram> telegrams)
+        private async Task CheckForWritableTelegrams(List<Telegram> telegrams, CancellationToken cancelToken)
         {
             var now = DateTimeOffset.Now;
             var lastWriteAge = now - lastWrite;
@@ -64,26 +36,15 @@ namespace EnergyReader.Consumer
                 var batch = telegrams.Where(t => t.TimeStamp >= lastWrite);
                 if (batch.Any())
                 {
-                    Interlocked.Increment(ref writeTasksRunning);
-                    if (!cts.IsCancellationRequested)
-                    {
-                        var list = batch.ToList();
-                        Task
-                            .Run(async () => await WriteTelegrams(list))
-                            .ContinueWith((task) => Interlocked.Decrement(ref writeTasksRunning));
-                    }
-                    else
-                    {
-                        Interlocked.Decrement(ref writeTasksRunning);
-                    }
-
+                    var list = batch.ToList();
+                    await WriteTelegrams(list, cancelToken);
                     telegrams.RemoveAll(t => batch.Contains(t));
                 }
                 lastWrite = now;
             }
         }
 
-        private async Task WriteTelegrams(List<Telegram> telegrams)
+        private async Task WriteTelegrams(List<Telegram> telegrams, CancellationToken cancelToken)
         {
             logger.LogInformation($"Write {telegrams.Count} telegrams");
 
@@ -95,7 +56,7 @@ namespace EnergyReader.Consumer
 
             var client = new LineProtocolClient(new Uri(Uri), DatabaseName);
 
-            var writeResult = await client.WriteAsync(payload);
+            var writeResult = await client.WriteAsync(payload, cancelToken);
             logger.LogInformation($"WriteResult: {writeResult.Success} {writeResult.ErrorMessage}");
         }
 
@@ -137,26 +98,20 @@ namespace EnergyReader.Consumer
                 timeStamp.UtcDateTime); //Timestamp
         }
 
-        public void Start()
+        public async Task StartConsuming(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
         {
-            inputQueue = new BlockingCollection<byte[]>();
-            cts = new CancellationTokenSource();
-            var cancelToken = cts.Token;
-            consumerTask = Task.Factory.StartNew(() => Consume(cancelToken), TaskCreationOptions.LongRunning);
-        }
+            var telegrams = new List<Telegram>();
+            var parser = new DSMRTelegramParser();
 
-        public void Stop()
-        {
-            inputQueue.CompleteAdding();
-            cts.Cancel();
-            SpinWait.SpinUntil(() => Interlocked.CompareExchange(ref writeTasksRunning, 0, 0) == 0, TimeSpan.FromSeconds(5));
-            consumerTask.Wait(TimeSpan.FromSeconds(5));
-            inputQueue.Dispose();
-        }
-
-        public void Enqueue(byte[] data)
-        {
-            inputQueue.Add(data);
+            foreach (var data in queue.GetConsumingEnumerable(cancelToken))
+            {
+                var telegram = parser.Parse(new Span<byte>(data));
+                if (telegram.TimeStamp != null)
+                {
+                    telegrams.Add(telegram);
+                }
+                await CheckForWritableTelegrams(telegrams, cancelToken);
+            }
         }
     }
 }
