@@ -10,7 +10,7 @@
     <PackageReference Include="InfluxDB.LineProtocol" Version="1.1.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="5.0.0" />
-    <PackageReference Include="System.IO.Ports" Version="5.0.1" />
+    <PackageReference Include="SystemIOPorts.SerialPort_Mono" Version="1.0.0" />
   </ItemGroup>
 
 </Project>

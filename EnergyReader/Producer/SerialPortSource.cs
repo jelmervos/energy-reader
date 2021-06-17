@@ -22,6 +22,7 @@ namespace EnergyReader.Producer
         private readonly ILogger logger;
         private const string PortName = "/dev/ttyUSB0";
         private const int BaudRate = 115200;
+        private CancellationTokenSource cts;
 
         public SerialPortSource(ILogger<SerialPortSource> logger)
         {
@@ -30,22 +31,46 @@ namespace EnergyReader.Producer
 
         public void Start()
         {
-            serialPort = new SerialPort(PortName, BaudRate);
-            serialPort.DataReceived += SerialPortDataReceived;
-            serialPort.Encoding = encoding;
-            serialPort.NewLine = LineSeperator;
+            serialPort = new SerialPort(PortName, BaudRate)
+            {
+                Encoding = encoding,
+                NewLine = LineSeperator
+            };
 
             inputBuffer = new List<string>();
 
             serialPort.Open();
+
+            cts = new CancellationTokenSource();
+            var cancelToken = cts.Token;
+            Task.Factory.StartNew(async () => await StartReadingFromSerialPort(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
         }
 
-        private void SerialPortDataReceived(object sender, SerialDataReceivedEventArgs e)
+        private async Task StartReadingFromSerialPort(CancellationToken cancelToken)
         {
-            var data = serialPort.ReadExisting();
+            var buffer = new Memory<byte>(new byte[1024]);
+            while (!cancelToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var bytesRead = await serialPort.BaseStream.ReadAsync(buffer, cancelToken);
+                    var data = buffer.ToArray();
+                    ProcessSerialPortData(data);
+                }
+                catch (IOException ex)
+                {
+                    logger.LogError(ex, "Exception reading from serial port");
+                }
+                catch (OperationCanceledException) { }
+            }
+        }
+
+        private void ProcessSerialPortData(byte[] data)
+        {
+            logger.LogInformation($"data {data.Length}");
             lock (inputBufferLock)
             {
-                inputBuffer.Add(data);
+                inputBuffer.Add(encoding.GetString(data));
                 CheckForTelegrams();
             }
         }
