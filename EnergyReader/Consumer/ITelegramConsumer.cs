@@ -10,6 +10,6 @@ namespace EnergyReader.Consumer
 {
     interface ITelegramConsumer
     {
-        Task StartConsuming(BlockingCollection<byte[]> queue, CancellationToken cancelToken);
+        Task StartConsumingAsync(BlockingCollection<byte[]> queue, CancellationToken cancelToken);
     }
 }

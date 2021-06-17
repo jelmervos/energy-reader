@@ -20,7 +20,7 @@ namespace EnergyReader.Consumer
             this.logger = logger;
         }
 
-        public async Task StartConsuming(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
+        public async Task StartConsumingAsync(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
         {
             foreach (var data in queue.GetConsumingEnumerable(cancelToken))
             {

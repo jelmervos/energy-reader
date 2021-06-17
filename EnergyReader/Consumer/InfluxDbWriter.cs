@@ -98,7 +98,7 @@ namespace EnergyReader.Consumer
                 timeStamp.UtcDateTime); //Timestamp
         }
 
-        public async Task StartConsuming(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
+        public async Task StartConsumingAsync(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
         {
             var telegrams = new List<Telegram>();
             var parser = new DSMRTelegramParser();

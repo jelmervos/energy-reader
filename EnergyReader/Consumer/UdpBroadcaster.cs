@@ -21,7 +21,7 @@ namespace EnergyReader.Consumer
             this.logger = logger;
         }
 
-        public async Task StartConsuming(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
+        public async Task StartConsumingAsync(BlockingCollection<byte[]> queue, CancellationToken cancelToken)
         {
             using var udpClient = new UdpClient();
             var broadcastIpAddress = IPAddress.Broadcast.ToString();

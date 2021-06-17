@@ -23,7 +23,6 @@ namespace EnergyReader
 
         public void Start()
         {
-            logger.LogInformation("Start");
             cts = new CancellationTokenSource();
             queue = new BlockingCollection<byte[]>();
             var cancelToken = cts.Token;
@@ -32,15 +31,16 @@ namespace EnergyReader
 
         private void StartConsumer(CancellationToken cancelToken)
         {
-            consumerTask = Task.Factory.StartNew(() => StartConsuming(cancelToken), TaskCreationOptions.LongRunning);
-            consumerTask.ContinueWith(t => RestartConsumer(t, cancelToken), TaskContinuationOptions.OnlyOnFaulted);
+            consumerTask = Task.Factory.StartNew(async () => await StartConsumingAsync(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+            consumerTask.ContinueWith(t => RestartConsumer(t, cancelToken), cancelToken, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Current);
         }
 
-        private void StartConsuming(CancellationToken cancelToken)
+        private async Task StartConsumingAsync(CancellationToken cancelToken)
         {
+            logger.LogInformation("Start consuming");
             try
             {
-                consumer.StartConsuming(queue, cancelToken);
+                await consumer.StartConsumingAsync(queue, cancelToken);
             }
             catch (OperationCanceledException) { }
         }
@@ -49,18 +49,23 @@ namespace EnergyReader
         {
             if (task?.Exception != null)
             {
-                logger.LogError(task.Exception, $"Consuming error {consumer.GetType()}");
+                logger.LogError(task.Exception, "Consumer faulted");
+            }
+            else
+            {
+                logger.LogError("Consumer faulted");
             }
 
             if (!cancelToken.IsCancellationRequested)
             {
+                logger.LogError("Restarting consumer");
                 StartConsumer(cancelToken);
             }
         }
 
         public void Stop()
         {
-            logger.LogInformation("Stop");
+            logger.LogInformation("Stop consumer");
             cts.Cancel();
             queue.CompleteAdding();
             consumerTask.Wait(TimeSpan.FromSeconds(5));
