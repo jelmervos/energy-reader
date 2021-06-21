@@ -8,6 +8,7 @@ using System.IO.Ports;
 using System.Threading;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace EnergyReader.Producer
 {
@@ -18,11 +19,13 @@ namespace EnergyReader.Producer
         private readonly Encoding encoding = Encoding.ASCII;
         private const string LineSeperator = "\r\n";
         private List<string> inputBuffer;
-        private readonly object inputBufferLock = new();
         private readonly ILogger logger;
         private const string PortName = "/dev/ttyUSB0";
         private const int BaudRate = 115200;
         private CancellationTokenSource cts;
+        private BlockingCollection<byte[]> queue;
+        private Task consumerTask;
+        private Task producerTask;
 
         public SerialPortSource(ILogger<SerialPortSource> logger)
         {
@@ -31,6 +34,8 @@ namespace EnergyReader.Producer
 
         public void Start()
         {
+            queue = new BlockingCollection<byte[]>();
+
             serialPort = new SerialPort(PortName, BaudRate)
             {
                 Encoding = encoding,
@@ -43,20 +48,21 @@ namespace EnergyReader.Producer
 
             cts = new CancellationTokenSource();
             var cancelToken = cts.Token;
-            Task.Factory.StartNew(async () => await StartReadingFromSerialPort(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+            consumerTask = Task.Factory.StartNew(() => ProcessSerialPortData(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+            producerTask = Task.Factory.StartNew(async () => await ReadFromSerialPort(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
         }
 
-        private async Task StartReadingFromSerialPort(CancellationToken cancelToken)
+        private async Task ReadFromSerialPort(CancellationToken cancelToken)
         {
             var buffer = new byte[1024];
             while (!cancelToken.IsCancellationRequested)
             {
                 try
                 {
-                    var bytesRead = await serialPort.BaseStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancelToken).ConfigureAwait(false);
+                    var bytesRead = await serialPort.BaseStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancelToken);
                     var data = new byte[bytesRead];
                     Buffer.BlockCopy(buffer, 0, data, 0, data.Length);
-                    ProcessSerialPortData(data);
+                    queue.Add(data, cancelToken);
                 }
                 catch (IOException ex)
                 {
@@ -66,13 +72,17 @@ namespace EnergyReader.Producer
             }
         }
 
-        private void ProcessSerialPortData(byte[] data)
+        private void ProcessSerialPortData(CancellationToken cancelToken)
         {
-            lock (inputBufferLock)
+            try
             {
-                inputBuffer.Add(encoding.GetString(data));
-                CheckForTelegrams();
+                foreach (var data in queue.GetConsumingEnumerable(cancelToken))
+                {
+                    inputBuffer.Add(encoding.GetString(data));
+                    CheckForTelegrams();
+                }
             }
+            catch (OperationCanceledException) { }
         }
 
         private void CheckForTelegrams()
@@ -113,10 +123,15 @@ namespace EnergyReader.Producer
 
         public void Stop()
         {
+            logger.LogInformation("Stop");
+            queue.CompleteAdding();
             cts.Cancel();
+            producerTask.Wait(TimeSpan.FromSeconds(5));
+            consumerTask.Wait(TimeSpan.FromSeconds(5));
             serialPort.Close();
             serialPort.Dispose();
             cts.Dispose();
+            queue.Dispose();
         }
     }
 }
