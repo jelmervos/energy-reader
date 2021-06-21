@@ -48,13 +48,14 @@ namespace EnergyReader.Producer
 
         private async Task StartReadingFromSerialPort(CancellationToken cancelToken)
         {
-            var buffer = new Memory<byte>(new byte[1024]);
+            var buffer = new byte[1024];
             while (!cancelToken.IsCancellationRequested)
             {
                 try
                 {
-                    var bytesRead = await serialPort.BaseStream.ReadAsync(buffer, cancelToken);
-                    var data = buffer.ToArray();
+                    var bytesRead = await serialPort.BaseStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancelToken).ConfigureAwait(false);
+                    var data = new byte[bytesRead];
+                    Buffer.BlockCopy(buffer, 0, data, 0, data.Length);
                     ProcessSerialPortData(data);
                 }
                 catch (IOException ex)
@@ -67,7 +68,6 @@ namespace EnergyReader.Producer
 
         private void ProcessSerialPortData(byte[] data)
         {
-            logger.LogInformation($"data {data.Length}");
             lock (inputBufferLock)
             {
                 inputBuffer.Add(encoding.GetString(data));
@@ -113,8 +113,10 @@ namespace EnergyReader.Producer
 
         public void Stop()
         {
+            cts.Cancel();
             serialPort.Close();
             serialPort.Dispose();
+            cts.Dispose();
         }
     }
 }
