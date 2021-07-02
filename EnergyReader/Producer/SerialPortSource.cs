@@ -48,8 +48,8 @@ namespace EnergyReader.Producer
 
             cts = new CancellationTokenSource();
             var cancelToken = cts.Token;
-            consumerTask = Task.Factory.StartNew(() => ProcessSerialPortData(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
-            producerTask = Task.Factory.StartNew(async () => await ReadFromSerialPort(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
+            consumerTask = Task.Factory.StartNew(() => ProcessSerialPortData(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            producerTask = Task.Factory.StartNew(async () => await ReadFromSerialPort(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         private async Task ReadFromSerialPort(CancellationToken cancelToken)

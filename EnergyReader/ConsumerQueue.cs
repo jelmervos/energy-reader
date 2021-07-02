@@ -31,8 +31,8 @@ namespace EnergyReader
 
         private void StartConsumer(CancellationToken cancelToken)
         {
-            consumerTask = Task.Factory.StartNew(async () => await StartConsumingAsync(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Current);
-            consumerTask.ContinueWith(t => RestartConsumer(t, cancelToken), cancelToken, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Current);
+            consumerTask = Task.Factory.StartNew(async () => await StartConsumingAsync(cancelToken), cancelToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            consumerTask.ContinueWith(t => RestartConsumer(t, cancelToken), cancelToken, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         }
 
         private async Task StartConsumingAsync(CancellationToken cancelToken)
